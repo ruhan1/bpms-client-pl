@@ -10,6 +10,7 @@ use Net::SSL;
 use HTTP::Request;
 use HTTP::Cookies;
 use Term::ReadKey;
+use URI::Escape;
 use Switch;
 
 $ENV{HTTPS_DEBUG} = 0;
@@ -20,12 +21,23 @@ my $args = {};
 my $method = "GET"; # POST/PUT/DELETE
 my $resource = "process"; # process/task/repository/history/deployment, etc.
 my $action = "start"; #start/abort/signal for process; claim/release/start/complete for task
+my $params = "";
 
 #print Dumper(@ARGV);
 
 while (@ARGV) {
   $_ = shift @ARGV;
   switch($_) {
+    case /^-d$/ {
+      if (not $params) { $params .= "?"; }
+      my $kv = $ARGV[0];
+      if ($kv =~ /(\w+)\=(\S+)/) {
+        my $k = $1;
+        if ($k !~ /^map_/) { substr($k, 0,0) = 'map_'; }
+        $kv = $k . '=' . uri_escape($2) 
+      }
+      $params .= ($kv . "&");
+    }
     case /^-/ {
       $args->{$_} = $ARGV[0];
     }
@@ -47,6 +59,7 @@ my $procInstanceID = $args->{"-procInstanceID"};
 
 print Dumper($args);
 print $resource . " " . $action . "\n";
+print $params . "\n";
 
 my $user = '';
 my $pass = '';
@@ -54,7 +67,7 @@ my $basicAuth = 0;
 
 my $homeUrl = $ENV{BPMS_HOME};
 if (not $homeUrl) {
-  $homeUrl = 'https://maitai-bpms.engineering.redhat.com';
+  $homeUrl = 'https://maitai-bpms-01.app.test.eng.nay.redhat.com'; #default
 }
 if ($homeUrl !~ /\/$/) {
   $homeUrl .= '/';
@@ -62,12 +75,13 @@ if ($homeUrl !~ /\/$/) {
 $homeUrl .= 'business-central';
 #print "$homeUrl\n";
 
-my $url = $homeUrl . '/rest/task/query?potentialOwner=ruhan';
+my $url = $homeUrl . '/rest/task/query?potentialOwner=ruhan'; #for test
 
 if ($resource eq "process") {
   $url = $homeUrl . "/rest/runtime/$deploymentId/process/$processDefId/$action";
-  print $url . "\n";
 }
+$url .= $params;
+print $url . "\n";
 
 my $agent = LWP::UserAgent->new();
 
@@ -82,7 +96,6 @@ my @ns_headers = ('Accept' => 'application/json');
 # Issue the request
 my $request = HTTP::Request->new(uc $method => $url);
 $response = $agent->request($request, @ns_headers);
-#$response = $agent->get( $url, @ns_headers ); 
 #print Dumper($response);
 
 # Get 401 Unauthorized if not authenticated
