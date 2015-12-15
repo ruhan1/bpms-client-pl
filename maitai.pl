@@ -25,8 +25,11 @@ my $params = "";
 
 my %ns_headers = ();
 
+print Dumper(@ARGV);
+
 while (@ARGV) {
   $_ = shift @ARGV;
+  my $do_shift = 1;
   switch($_) {
     case /^-H$/ {
       my $h = $ARGV[0];
@@ -34,13 +37,13 @@ while (@ARGV) {
         $ns_headers{$1} = $2;
       }
     }
-    case /^-d$/ {
+    case /^-d|-D$/ {
       if (not $params) { $params .= "?"; }
       my $kv = $ARGV[0];
-      if ($kv =~ /(\w+)\=(\S+)/) {
+      if (/^-d/ && ($kv =~ /(\w+)\=([\w\s]+)/)) {
         my $k = $1;
         if ($k !~ /^map_/) { substr($k, 0,0) = 'map_'; }
-        $kv = $k . '=' . uri_escape($2) 
+        $kv = $k . '=' . uri_escape($2);
       }
       $params .= ($kv . "&");
     }
@@ -49,12 +52,14 @@ while (@ARGV) {
     }
     case /process|task|repository|history|deployment/ { 
       $resource = $_;
+      $do_shift = 0;
     }
-    case /start|abort|signal|claim|release|start|complete/ { 
+    case /query|start|abort|signal|claim|release|start|complete/ { 
       $action = $_;
+      $do_shift = 0;
     }
   }
-  shift @ARGV;
+  if ($do_shift) { shift @ARGV; }
 }
 print Dumper(\%ns_headers);
 
@@ -83,10 +88,12 @@ if ($homeUrl !~ /\/$/) {
 $homeUrl .= 'business-central';
 #print "$homeUrl\n";
 
-my $url = $homeUrl . '/rest/task/query?potentialOwner=ruhan'; #for test
+my $url = '';
 
 if ($resource eq "process") {
   $url = $homeUrl . "/rest/runtime/$deploymentId/process/$processDefId/$action";
+} elsif ($resource eq "task") {
+  $url = $homeUrl . "/rest/task/$action";
 }
 $url .= $params;
 print $url . "\n";
@@ -113,6 +120,7 @@ if ($response->{"_rc"} =~ /401/) {
   chomp($pass = <STDIN>);
   ReadMode(0);        # back to normal
   $basicAuth = 1;
+  print "\n";
 }
 
 # Basic Authentication
