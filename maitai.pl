@@ -23,11 +23,17 @@ my $resource = "process"; # process/task/repository/history/deployment, etc.
 my $action = "start"; #start/abort/signal for process; claim/release/start/complete for task
 my $params = "";
 
-#print Dumper(@ARGV);
+my %ns_headers = ();
 
 while (@ARGV) {
   $_ = shift @ARGV;
   switch($_) {
+    case /^-H$/ {
+      my $h = $ARGV[0];
+      if ($h =~ /(\S+)\s*\:\s*(\S+)/) {
+        $ns_headers{$1} = $2;
+      }
+    }
     case /^-d$/ {
       if (not $params) { $params .= "?"; }
       my $kv = $ARGV[0];
@@ -50,6 +56,8 @@ while (@ARGV) {
   }
   shift @ARGV;
 }
+print Dumper(\%ns_headers);
+
 if ($args->{"-x"}) {
   $method = $args->{"-x"};
 }
@@ -91,11 +99,9 @@ $agent->cookie_jar( {} );
 # Access home url to force authentication via Kerberos keytab if run kinit
 my $response = $agent->get( $homeUrl );
 
-my @ns_headers = ('Accept' => 'application/json');
-
 # Issue the request
 my $request = HTTP::Request->new(uc $method => $url);
-$response = $agent->request($request, @ns_headers);
+$response = $agent->request($request, %ns_headers);
 #print Dumper($response);
 
 # Get 401 Unauthorized if not authenticated
@@ -113,7 +119,7 @@ if ($response->{"_rc"} =~ /401/) {
 if ($basicAuth) {
   my $request = HTTP::Request->new(uc $method => $url);
   $request->authorization_basic($user, $pass);
-  $response = $agent->request($request, @ns_headers);
+  $response = $agent->request($request, %ns_headers);
 }
 
 die "Couldn't get $url" unless defined $response;
