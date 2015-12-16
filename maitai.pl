@@ -17,8 +17,8 @@ $ENV{HTTPS_DEBUG} = 0;
 $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
 
 my $args = {};
-
-my $method = "GET"; # POST/PUT/DELETE
+my %process_methods = ();
+my %task_methods = (query=>'get');
 my $resource = "process"; 
 my $action = "start"; 
 my $params = "";
@@ -63,9 +63,6 @@ while (@ARGV) {
 }
 print Dumper(\%ns_headers) if defined $ENV{DEBUG};
 
-if ($args->{"-x"}) {
-  $method = $args->{"-x"};
-}
 my $deploymentId = $args->{"-deploymentId"};
 my $processDefId = $args->{"-processDefId"};
 my $procInstanceId = $args->{"-procInstanceId"};
@@ -89,15 +86,20 @@ if ($homeUrl !~ /\/$/) {
 $homeUrl .= 'business-central';
 
 my $url = '';
+my $method = '';
 
 if ($resource eq "process") {
   $url = $homeUrl . "/rest/runtime/$deploymentId/process/$processDefId/$action";
+  $method = $process_methods{$action} || 'post';
 } elsif ($resource eq "task") {
   if ($action eq "query") {
     $url = $homeUrl . "/rest/task/$action";
   } else {
     $url = $homeUrl . "/rest/task/$taskId/$action";
   }
+  $method = $task_methods{$action} || 'post';
+} else {
+  die "$resource not exist!";
 }
 $url .= $params;
 print $url . "\n" if defined $ENV{DEBUG};
