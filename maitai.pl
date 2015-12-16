@@ -19,13 +19,13 @@ $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
 my $args = {};
 
 my $method = "GET"; # POST/PUT/DELETE
-my $resource = "process"; # process/task/repository/history/deployment, etc.
-my $action = "start"; #start/abort/signal for process; claim/release/start/complete for task
+my $resource = "process"; 
+my $action = "start"; 
 my $params = "";
 
 my %ns_headers = ();
 
-print Dumper(@ARGV);
+print Dumper(@ARGV) if defined $ENV{DEBUG};
 
 while (@ARGV) {
   $_ = shift @ARGV;
@@ -37,7 +37,7 @@ while (@ARGV) {
         $ns_headers{$1} = $2;
       }
     }
-    case /^-d|-D$/ {
+    case /^-d$|-D$/ {
       if (not $params) { $params .= "?"; }
       my $kv = $ARGV[0];
       if (/^-d/ && ($kv =~ /(\w+)\=([\w\s]+)/)) {
@@ -54,25 +54,26 @@ while (@ARGV) {
       $resource = $_;
       $do_shift = 0;
     }
-    case /query|start|abort|signal|claim|release|start|complete/ { 
+    case /start|abort|signal|query|claim|release|complete/ { 
       $action = $_;
       $do_shift = 0;
     }
   }
   if ($do_shift) { shift @ARGV; }
 }
-print Dumper(\%ns_headers);
+print Dumper(\%ns_headers) if defined $ENV{DEBUG};
 
 if ($args->{"-x"}) {
   $method = $args->{"-x"};
 }
 my $deploymentId = $args->{"-deploymentId"};
 my $processDefId = $args->{"-processDefId"};
-my $procInstanceID = $args->{"-procInstanceID"};
+my $procInstanceId = $args->{"-procInstanceId"};
+my $taskId = $args->{"-taskId"};
 
-print Dumper($args);
-print $resource . " " . $action . "\n";
-print $params . "\n";
+print Dumper($args) if defined $ENV{DEBUG};
+print $resource . " " . $action . "\n" if defined $ENV{DEBUG};
+print $params . "\n" if defined $ENV{DEBUG};
 
 my $user = '';
 my $pass = '';
@@ -86,30 +87,33 @@ if ($homeUrl !~ /\/$/) {
   $homeUrl .= '/';
 }
 $homeUrl .= 'business-central';
-#print "$homeUrl\n";
 
 my $url = '';
 
 if ($resource eq "process") {
   $url = $homeUrl . "/rest/runtime/$deploymentId/process/$processDefId/$action";
 } elsif ($resource eq "task") {
-  $url = $homeUrl . "/rest/task/$action";
+  if ($action eq "query") {
+    $url = $homeUrl . "/rest/task/$action";
+  } else {
+    $url = $homeUrl . "/rest/task/$taskId/$action";
+  }
 }
 $url .= $params;
-print $url . "\n";
+print $url . "\n" if defined $ENV{DEBUG};
 
 my $agent = LWP::UserAgent->new();
 
-# By default, an LWP::UserAgent object doesn't implement cookies. Making it do so is as simple as this
+# By default, LWP::UserAgent object doesn't implement cookies. Making it do so is as simple as this
 $agent->cookie_jar( {} );
 
-# Access home url to force authentication via Kerberos keytab if run kinit
+# Access homeUrl to force Kerberos authentication if use kinit
 my $response = $agent->get( $homeUrl );
 
-# Issue the request
+# Send the request
 my $request = HTTP::Request->new(uc $method => $url);
 $response = $agent->request($request, %ns_headers);
-#print Dumper($response);
+#print Dumper($response) if defined $ENV{DEBUG};
 
 # Get 401 Unauthorized if not authenticated
 if ($response->{"_rc"} =~ /401/) {
@@ -135,3 +139,64 @@ die "Error: ", $response->status_line unless $response->is_success;
 
 print $response->content . "\n";
 
+
+
+=head1 NAME
+
+BPMS 6.x client tool
+
+=head1 SYNOPSIS
+
+./maitai.pl <resource> <action> [parameters...]
+
+=head1 DESCRIPTION
+
+This is a tool to access BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports basic process and task operations, such as start a process, complete a task, etc. 
+
+For example, to start a process "./maitai.pl process start -deploymentId com.myorganization.myprojects:test:1.9 -processDefId test.testparams -d aString='Hello,world!' -d aInt=200i -d aLong=30"; to query my tasks "./maitai.pl task query -D potentialOwner=ruhan". 
+
+This program uses a system varible BPMS_HOME to identify the target server. If not specified, the default is 'https://maitai-bpms-01.app.test.eng.nay.redhat.com'.
+
+=head2 Resources
+
+process/task/history/deployment
+
+=head2 Actions
+
+start/abort/signal for process; query/claim/release/start/complete for task; list for deployment. 
+
+=head2 Parameters
+
+=over 12
+
+=item C<-deploymentId>
+
+Artifact deployment id, such as "com.myorganization.myprojects:test:1.9"
+
+=item C<-processDefId>
+
+Process definition id, such as "test.testparams"
+
+=item C<-taskId>
+
+Task id. User can find all tasks via task query action.
+
+=item C<-d>
+
+Specify process or task input arguments, e.g, "-d aString='Hello,world!'". For integer, append "i" to the number, e.g, "-d aInt=200i" (by default a number will be converted to a Long). For boolean, use true or false, e.g, "-d aBoolean=true". 
+
+=item C<-D>
+
+Specify HTTP query arguments, such as "-D potentialOwner=ruhan"
+
+=item C<-H>
+
+Specify HTTP headers, such as "-H 'Accept: application/json'"
+
+=back
+
+=head1 AUTHOR
+
+Rui Han - <ruhan@redhat.com>
+
+=cut
