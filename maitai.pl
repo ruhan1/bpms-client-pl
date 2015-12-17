@@ -11,16 +11,19 @@ use HTTP::Request;
 use HTTP::Cookies;
 use Term::ReadKey;
 use URI::Escape;
+use XML::Simple;
 use Switch;
 
 $ENV{HTTPS_DEBUG} = 0;
 $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
+$XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 
 my $args = {};
 my %process_methods = ();
 my %task_methods = (query=>'get');
-my $resource = "process"; 
-my $action = "start"; 
+my %deployment_methods = ();
+my $resource = ""; 
+my $action = ""; 
 my $params = "";
 
 my %ns_headers = ();
@@ -98,6 +101,15 @@ if ($resource eq "process") {
     $url = $homeUrl . "/rest/task/$taskId/$action";
   }
   $method = $task_methods{$action} || 'post';
+} elsif ($resource eq "deployment") {
+  $url = $homeUrl . "/rest/$resource";
+  if ($deploymentId) { $url .= "/$deploymentId"; }
+  if ($action) { 
+    $url .= "/$action"; 
+    $method = 'post'; # deploy/undeploy
+  } else {
+    $method = 'get';
+  }
 } else {
   die "$resource not exist!";
 }
