@@ -3,11 +3,7 @@ Perl client to create bpms 6.x process instance and perform tasks via rest api. 
 
 ##1. Prerequisite
 
-cpan>
-
-install LWP::Authen::Negotiate
-
-install XML::Simple
+cpan> install LWP::Authen::Negotiate XML::Parser XML::Simple Switch
 
 If install XML::Simple fails, try yum install expat-devel
 

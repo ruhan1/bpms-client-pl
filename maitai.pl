@@ -11,12 +11,12 @@ use HTTP::Request;
 use HTTP::Cookies;
 use Term::ReadKey;
 use URI::Escape;
-use XML::Simple;
+#use XML::Simple;
 use Switch;
 
 $ENV{HTTPS_DEBUG} = 0;
 $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
-$XML::Simple::PREFERRED_PARSER = 'XML::Parser';
+#$XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 
 my $args = {};
 my %process_methods = ();
