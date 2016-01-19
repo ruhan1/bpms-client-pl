@@ -5,21 +5,26 @@ Perl client to create bpms 6.x process instance and perform tasks via rest api. 
 
 $ cpan
 
-cpan> install LWP::Authen::Negotiate Switch
+cpan> install LWP::Authen::Negotiate XML::Simple Switch Config::Simple
 
-##2. System variables
+##2. Config (first time)
 
-$ export BPMS_HOME=http://localhost:8080 (default is https://maitai-bpms-01.app.test.eng.nay.redhat.com)
+./maitai.pl conf homeUrl=http://localhost:8080
 
-$ export DEBUG=1 (if you need debug)
+##3. System variable (optional)
 
-##3. User Kerberos authentication (Optional)
+$ export BPMS_HOME=http://localhost:8080 (if not set homeUrl)
+$ export DEBUG=1 (to open debug)
+
+##4. User Kerberos authentication (Optional)
 
 $ kinit
 
-##4. Examples
+##5. Examples
 
 ./maitai.pl deployment
+
+./maitai.pl deployment processes -deploymentId com.myorganization.myprojects:test:1.9
 
 ./maitai.pl process start -deploymentId com.myorganization.myprojects:test:1.9 -processDefId test.testusertask -d taskOwner=ruhan -d description="a test"
 
