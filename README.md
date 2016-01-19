@@ -14,6 +14,7 @@ cpan> install LWP::Authen::Negotiate XML::Simple Switch Config::Simple
 ##3. System variable (optional)
 
 $ export BPMS_HOME=http://localhost:8080 (if not set homeUrl)
+
 $ export DEBUG=1 (to open debug)
 
 ##4. User Kerberos authentication (Optional)
