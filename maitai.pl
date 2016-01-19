@@ -34,7 +34,7 @@ my $action = "";
 my $params = "";
 my %ns_headers = ();
 
-print Dumper(@ARGV) if defined $ENV{BPMS_DEBUG};
+print Dumper(@ARGV) if defined $ENV{DEBUG};
 
 while (@ARGV) {
   $_ = shift @ARGV;
@@ -70,7 +70,7 @@ while (@ARGV) {
   }
   if ($do_shift) { shift @ARGV; }
 }
-print Dumper(\%ns_headers) if defined $ENV{BPMS_DEBUG};
+print Dumper(\%ns_headers) if defined $ENV{DEBUG};
 
 my $cfg = get_config();
 die "Can not load config file" unless defined $cfg;
@@ -82,22 +82,39 @@ my $taskId = $args->{"-taskId"};
 my $requestContent;
 my $userpassRef;
 
-print Dumper($args) if defined $ENV{BPMS_DEBUG};
-print $resource . " " . $action . "\n" if defined $ENV{BPMS_DEBUG};
-print $params . "\n" if defined $ENV{BPMS_DEBUG};
+print Dumper($args) if defined $ENV{DEBUG};
+print $resource . " " . $action . "\n" if defined $ENV{DEBUG};
+print $params . "\n" if defined $ENV{DEBUG};
 
 my $homeUrl = $ENV{BPMS_HOME};
 if (not $homeUrl) {
   $homeUrl = $cfg->param('homeUrl'); # Get from config
 }
+
+if ($resource eq "conf") {
+  if ($action eq "") {
+    print Dumper($cfg);
+  } elsif ($action =~ /(\w+)\=(.+)/) {
+    $cfg->param($1, $2);
+    $cfg->save();
+  } else {
+    print $cfg->param($action) . "\n";
+  }
+  exit;
+}
+
+if (not $homeUrl or $homeUrl eq "undef") {
+  print "No homeUrl. Please use './maitai.pl conf homeUrl=http://host[:port]' to specify the homeUrl\n";
+  exit;
+}
+
 if ($homeUrl !~ /\/$/) {
   $homeUrl .= '/';
 }
 $homeUrl .= 'business-central';
 
-my $url = '';
+my $url = $homeUrl . "/rest";
 my $method = '';
-
 my $originalDeploymentId;
 if ($deploymentId) {
   my $version = (split(/:/, $deploymentId))[2];
@@ -108,42 +125,35 @@ if ($deploymentId) {
 }
 
 if ($resource eq "process") {
-  $url = $homeUrl . "/rest/runtime/$deploymentId/process/$processDefId/$action";
+  $url .= "/runtime/$deploymentId/process/$processDefId/$action";
   $method = $process_methods{$action} || 'post';
 } elsif ($resource eq "task") {
   if ($action eq "query") {
-    $url = $homeUrl . "/rest/task/$action";
+    $url .= "/task/$action";
   } else {
-    $url = $homeUrl . "/rest/task/$taskId/$action";
+    $url .= "/task/$taskId/$action";
   }
   $method = $task_methods{$action} || 'post';
-} elsif ($resource eq "deployment") { # deploy/undeploy/processes
-  $url = $homeUrl . "/rest/deployment";
-  if ($deploymentId) { $url .= "/$deploymentId"; }
-  if ($action) { 
+} elsif ($resource eq "deployment") { 
+  if ($action) { # deploy/undeploy/processes
     if ($action =~ /processes/) { # no direct api, have to exec GetProcessIdsCommand
-      $url = $homeUrl . "/rest/execute";
+      $url .= "/execute";
       $requestContent = "<command-request><get-process-ids/><deployment-id>$deploymentId</deployment-id></command-request>";
     } else {
-      $url .= "/$action"; 
+      $url .= "/deployment/$deploymentId/$action";
     }
     $method = 'post'; 
   } else {
+    $url .= "/deployment";
+    if ($deploymentId) { $url .= "/$deploymentId"; }
     $method = 'get';
   }
-} elsif ($resource eq "conf") {
-  if ($action =~ /(\w+)\=(.+)/) {
-    $cfg->param($1, $2);
-    $cfg->save();
-  } else {
-    print $cfg->param($action) . "\n";
-  }
-  exit;
 } else {
   die "$resource not exist!";
 }
+
 $url .= $params;
-print $url . "\n" if defined $ENV{BPMS_DEBUG};
+print $url . "\n" if defined $ENV{DEBUG};
 
 if ($url =~ /:\[version\]/) { # process version not specified
   $url = get_complete_url();
@@ -160,9 +170,9 @@ while (my ($key, $value) = each (%ns_headers)) {
   $request->header($key => $value);
 }
 
-print Dumper($request) if defined $ENV{BPMS_DEBUG};
+print Dumper($request) if defined $ENV{DEBUG};
 my $response = do_request($request, $agent);
-print Dumper($response) if defined $ENV{BPMS_DEBUG};
+print Dumper($response) if defined $ENV{DEBUG};
 
 die "Couldn't get $url" unless defined $response;
 die "Error: ", $response->status_line unless $response->is_success;
@@ -177,11 +187,11 @@ sub get_complete_url {
   my $agent = get_agent();
   my $request = HTTP::Request->new(GET => $homeUrl . "/rest/deployment");
   my $response = do_request($request, $agent);
-  print Dumper($response) if defined $ENV{BPMS_DEBUG};
+  print Dumper($response) if defined $ENV{DEBUG};
   my $hash_ref = get_deployment_hash_ref($response->content);
   my $version = $hash_ref->{$originalDeploymentId};
   $url =~ s/\[version\]/$version/;
-  print $url . "\n" if defined $ENV{BPMS_DEBUG};
+  print $url . "\n" if defined $ENV{DEBUG};
   return $url;
 }
 
@@ -221,17 +231,13 @@ sub get_agent {
   return $ua; 
 }
 
-sub get_default_homeUrl {
-  return "https://maitai-bpms.host.dev.eng.pek2.redhat.com";
-}
-
 sub get_config {
   my $configdir = $ENV{"HOME"} . "/.maitai";
   mkdir $configdir unless -d $configdir; # Check if dir exists. If not create it.
   my $configfile = "$configdir/config";
   if (not -e $configfile) {
     open my $fh, ">>", $configfile or die "Can not open file $!";
-    print $fh "homeUrl=" . get_default_homeUrl() . "\n";
+    print $fh "homeUrl=undef\n";
     close $fh;
   }
   return new Config::Simple($configfile);
@@ -242,12 +248,17 @@ sub print_friendly {
   if ($resource eq "deployment") {
     print_deployment($content, $deploymentId, $action);
   } else {
-    my $config = eval { XMLin($content) };
-    if($@) { # parse error
-      print $content . "\n";
-    } else {
-      print Data::Dumper->Dump( [ $config ], [ qw(*result) ] );
-    }
+    dump_xml($content);
+  }
+}
+
+sub dump_xml {
+  my $content = shift;
+  my $config = eval { XMLin($content) };
+  if($@) { # parse error
+    print $content . "\n";
+  } else {
+    print Data::Dumper->Dump( [ $config ], [ qw(*result) ] );
   }
 }
 
@@ -257,7 +268,7 @@ sub print_deployment {
     if ($action =~ /processes/) {
       print_deployment_processes($content);
     } else {
-      print $content . "\n";
+      dump_xml($content);
     }
   } else {
     print_deployment_all($content);
@@ -306,21 +317,21 @@ maitai <resource> <action> [parameters...]
 
 =head1 DESCRIPTION
 
-Maitai is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports process and task operations, such as start process, complete task, etc. This program uses system variable BPMS_HOME to identify the target server. You can also use "./maitai conf homeUrl=http://host[:port]" to specify the Url. It will be remembered in ~/.maitai/config. 
+This is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports process and task operations, such as start process, complete task, etc. This program uses system variable BPMS_HOME to identify the target server. You can use "./maitai.pl conf homeUrl=http://host[:port]" to specify the Url. It will be remembered in ~/.maitai/config. 
 
 For beginners, you may want to list all deployments and find the right process by:
-  ./maitai deployment                                   # this will list all deployments
-  ./maitai deployment processes -deploymentId <id>      # this will list all processes in a certain deployment
+  ./maitai.pl deployment                                   # list all deployments
+  ./maitai.pl deployment processes -deploymentId <id>      # list all processes in a deployment
 
 Start a process: 
-  ./maitai process start -deploymentId <id> -processDefId <pid> [-d parameters...]
+  ./maitai.pl process start -deploymentId <id> -processDefId <pid> [-d parameters...]
 
 Query my tasks:
-  ./maitai task query -D potentialOwner=<uid>
+  ./maitai.pl task query -D potentialOwner=<uid>
 
 For example:
-  ./maitai process start -deploymentId draft:test:1.0 -processDefId test.testparams -d aString='Hello,world!' -d aInt=200i -d aLong=30
-  ./maitai task query -D potentialOwner=ruhan
+  ./maitai.pl process start -deploymentId draft:test:1.0 -processDefId test.testparams -d aString='Hello,world!' -d aInt=200i -d aLong=30
+  ./maitai.pl task query -D potentialOwner=ruhan
 
 =head2 Resources
 
