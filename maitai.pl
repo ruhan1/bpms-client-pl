@@ -247,19 +247,30 @@ sub print_friendly {
   my ($content, $resource, $action) = @_;
   if ($resource eq "deployment") {
     print_deployment($content, $deploymentId, $action);
+  } elsif ($resource eq "task") {
+    print_task($content, $action);
   } else {
     dump_xml($content);
   }
 }
 
 sub dump_xml {
-  my $content = shift;
-  my $config = eval { XMLin($content) };
+  my ($content, $argsRef) = @_;
+  my $config = eval { XMLin($content, @$argsRef) };
   if($@) { # parse error
     print $content . "\n";
   } else {
     print Data::Dumper->Dump( [ $config ], [ qw(*result) ] );
   }
+}
+
+sub print_task {
+  my ($content, $action) = @_;
+  my @args = ();
+  if ($action eq "query") {
+    @args = ( KeyAttr => { 'task-summary' => 'id' } );
+  }
+  dump_xml($content, \@args);
 }
 
 sub print_deployment {
@@ -317,7 +328,7 @@ maitai <resource> <action> [parameters...]
 
 =head1 DESCRIPTION
 
-This is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports process and task operations, such as start process, complete task, etc. This program uses system variable BPMS_HOME to identify the target server. You can use "./maitai.pl conf homeUrl=http://host[:port]" to specify the Url. It will be remembered in ~/.maitai/config. 
+This is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports process and task operations, such as start process, complete task, etc. This program uses system variable BPMS_HOME to identify the target server. You can also use "./maitai.pl conf homeUrl=http://host[:port]" to specify the homeUrl (it will be remembered in ~/.maitai/config). 
 
 For beginners, you may want to list all deployments and find the right process by:
   ./maitai.pl deployment                                   # list all deployments
@@ -329,7 +340,7 @@ Start a process:
 Query my tasks:
   ./maitai.pl task query -D potentialOwner=<uid>
 
-For example:
+Some examples:
   ./maitai.pl process start -deploymentId draft:test:1.0 -processDefId test.testparams -d aString='Hello,world!' -d aInt=200i -d aLong=30
   ./maitai.pl task query -D potentialOwner=ruhan
 
