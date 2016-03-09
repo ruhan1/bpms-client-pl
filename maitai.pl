@@ -27,6 +27,7 @@ $XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 
 my $args = {};
 my %process_methods = ();
+my %processinstance_methods = ();
 my %task_methods = (query=>'get');
 my %deployment_methods = ();
 my $resource = ""; 
@@ -59,7 +60,7 @@ while (@ARGV) {
     case /^-/ {
       $args->{$_} = $ARGV[0];
     }
-    case /^process$|^task$|^repository$|^history$|^deployment$|^conf$/ { 
+    case /^process|^task$|^repository$|^history$|^deployment$|^conf$/ { 
       $resource = $_;
       $do_shift = 0;
     }
@@ -77,7 +78,7 @@ die "Can not load config file" unless defined $cfg;
 
 my $deploymentId = $args->{"-deploymentId"};
 my $processDefId = $args->{"-processDefId"};
-my $procInstanceId = $args->{"-procInstanceId"};
+my $processInstanceId = $args->{"-processInstanceId"};
 my $taskId = $args->{"-taskId"};
 my $requestContent;
 my $userpassRef;
@@ -127,6 +128,14 @@ if ($deploymentId) {
 if ($resource eq "process") {
   $url .= "/runtime/$deploymentId/process/$processDefId/$action";
   $method = $process_methods{$action} || 'post';
+} elsif ($resource eq "processinstance") {
+  if ($action) {
+    $url .= "/runtime/$deploymentId/process/instance/$processInstanceId/$action";
+    $method = $processinstance_methods{$action} || 'post';
+  } else {
+    $url .= "/runtime/$deploymentId/process/instance/$processInstanceId";
+    $method = 'get';
+  }
 } elsif ($resource eq "task") {
   if ($action eq "query") {
     $url .= "/task/$action";
