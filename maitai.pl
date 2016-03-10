@@ -126,15 +126,18 @@ if ($deploymentId) {
 }
 
 if ($resource eq "process") {
-  $url .= "/runtime/$deploymentId/process/$processDefId/$action";
-  $method = $process_methods{$action} || 'post';
-} elsif ($resource eq "processinstance") {
-  if ($action) {
-    $url .= "/runtime/$deploymentId/process/instance/$processInstanceId/$action";
-    $method = $processinstance_methods{$action} || 'post';
-  } else {
-    $url .= "/runtime/$deploymentId/process/instance/$processInstanceId";
-    $method = 'get';
+  if ($processDefId) {
+    $url .= "/runtime/$deploymentId/process/$processDefId/$action";
+    $method = $process_methods{$action} || 'post';
+  }
+  if ($processInstanceId) {
+    if ($action) {
+      $url .= "/runtime/$deploymentId/process/instance/$processInstanceId/$action";
+      $method = $processinstance_methods{$action} || 'post';
+    } else {
+      $url .= "/runtime/$deploymentId/process/instance/$processInstanceId";
+      $method = 'get';
+    }
   }
 } elsif ($resource eq "task") {
   if ($action eq "query") {
@@ -337,21 +340,28 @@ maitai <resource> <action> [parameters...]
 
 =head1 DESCRIPTION
 
-This is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication. It supports process and task operations, such as start process, complete task, etc. This program uses system variable BPMS_HOME to identify the target server. You can also use "./maitai.pl conf homeUrl=http://host[:port]" to specify the homeUrl (it will be remembered in ~/.maitai/config). 
+This is a tool to access jBPM/BPMS 6.x via REST APIs. It can use either BASIC or Kerberos (kinit) authentication, and support basic process and task operations.  
 
-For beginners, you may want to list all deployments and find the right process by:
-  ./maitai.pl deployment                                   # list all deployments
-  ./maitai.pl deployment processes -deploymentId <id>      # list all processes in a deployment
+For beginners, you must configurate the BPMS server homeUrl:
+
+  ./maitai.pl conf homeUrl=http://host[:port]              # it will be remembered in ~/.maitai/config
+
+List all deployments and find its processes:
+
+  ./maitai.pl deployment                                   # list deployments
+  ./maitai.pl deployment processes -deploymentId <id>      # list processes in a deployment
 
 Start a process: 
+
   ./maitai.pl process start -deploymentId <id> -processDefId <pid> [-d parameters...]
 
 Query my tasks:
+
   ./maitai.pl task query -D potentialOwner=<uid>
 
-Some examples:
+Examples:
+
   ./maitai.pl process start -deploymentId draft:test:1.0 -processDefId test.testparams -d aString='Hello,world!' -d aInt=200i -d aLong=30
-  ./maitai.pl task query -D potentialOwner=ruhan
 
 =head2 Resources
 
@@ -372,6 +382,10 @@ Project deployment id of format "groupId:artifactId:version", such as "draft:tes
 =item C<-processDefId>
 
 Process definition id, such as "test.testparams"
+
+=item C<-processInstanceId>
+
+Process instance id, such as "1024"
 
 =item C<-taskId>
 
